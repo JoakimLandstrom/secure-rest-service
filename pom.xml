@@ -48,10 +48,14 @@
 			<artifactId>Casemanagement---Spring</artifactId>
 			<version>1c2519f1cc</version>
 		</dependency>
+		
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt</artifactId>
+			<version>0.7.0</version>
+		</dependency>
 
 	</dependencies>
-
-
 
 	<build>
 		<plugins>
