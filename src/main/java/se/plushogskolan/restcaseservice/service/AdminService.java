@@ -33,9 +33,9 @@ public class AdminService {
 
 	private final long EXPIRATION_TIME = 300;
 	private final int ITERATIONS = 10000;
-	
+
 	private AdminRepository adminRepository;
-	
+
 	private Key key = MacProvider.generateKey();
 
 	@Autowired
@@ -93,10 +93,11 @@ public class AdminService {
 
 	public void updateTokenTimestamp(String token) {
 		if (token != null) {
-			token = new String(token.substring("Bearer".length()));
+			token = new String(token.substring("Bearer ".length()));
 			try {
 				Admin admin = adminRepository.findByToken(token);
-				adminRepository.updateTimestampById(admin.getId(), generateTimestamp());
+				admin.setTimestamp(generateTimestamp());
+				adminRepository.save(admin);
 			} catch (DataAccessException e) {
 				throw new WebInternalErrorException("Internal error");
 			}
