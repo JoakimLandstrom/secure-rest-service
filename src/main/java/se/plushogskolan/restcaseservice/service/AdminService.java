@@ -1,5 +1,9 @@
 package se.plushogskolan.restcaseservice.service;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
@@ -8,6 +12,8 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Properties;
+import java.util.ResourceBundle;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -79,7 +85,7 @@ public class AdminService {
 
 			try {
 
-				Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(token);
+				Jwts.parser().require("adm", true).setSigningKey(getSecret()).parseClaimsJws(token);
 
 			} catch (ExpiredJwtException e) {
 				throw new UnauthorizedException("Access token has run out");
@@ -103,7 +109,7 @@ public class AdminService {
 
 			try {
 
-				Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(accessToken);
+				Jwts.parser().require("adm", true).setSigningKey(getSecret()).parseClaimsJws(accessToken);
 
 			} catch (ExpiredJwtException e) {
 
@@ -156,7 +162,7 @@ public class AdminService {
 
 		String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
 				.claim("usn", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("adm", true)
-				.signWith(SignatureAlgorithm.HS256, "fisk").compact();
+				.signWith(SignatureAlgorithm.HS256, getSecret()).compact();
 
 		return jwtToken;
 	}
@@ -184,9 +190,7 @@ public class AdminService {
 
 	private Admin findAdminByRefreshToken(String refreshToken) {
 		try {
-			
-			System.out.println(refreshToken);
-			
+
 			Admin admin = adminRepository.findByRefreshToken(refreshToken);
 
 			if (admin != null) {
@@ -196,6 +200,34 @@ public class AdminService {
 			}
 		} catch (DataAccessException e) {
 			throw new NotFoundException("Admin could not be found");
+		}
+	}
+
+	private String getSecret() {
+
+		Properties prop = new Properties();
+		InputStream input = null;
+
+		try {
+
+			input = new FileInputStream("src/main/resources/application.properties");
+
+			prop.load(input);
+
+			String property = prop.getProperty("secret");
+
+			return property;
+
+		} catch (IOException e) {
+			throw new WebInternalErrorException("Internal error");
+		} finally {
+			if (input != null) {
+				try {
+					input.close();
+				} catch (IOException e) {
+					throw new WebInternalErrorException("Internal error");
+				}
+			}
 		}
 
 	}
