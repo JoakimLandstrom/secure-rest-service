@@ -24,7 +24,7 @@ public final class RequestFilter implements ContainerRequestFilter {
 		
 		if ("/login".equals(resource)) {} 
 		else if(adminService.authenticateToken(token)) {
-			adminService.updateTokenTimestamp(token);
+			
 		}
 		else
 			throw new UnauthorizedException("Unauthorized");

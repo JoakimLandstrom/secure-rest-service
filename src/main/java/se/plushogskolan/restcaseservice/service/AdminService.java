@@ -3,8 +3,6 @@ package se.plushogskolan.restcaseservice.service;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -25,7 +23,6 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.SignatureException;
 import se.plushogskolan.restcaseservice.exception.NotFoundException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
@@ -36,10 +33,10 @@ import se.plushogskolan.restcaseservice.repository.AdminRepository;
 @Service
 public class AdminService {
 
-	private final long EXPIRATION_TIME_REFRESH = 7l;
-	private final long EXPIRATION_TIME_ACCESS = 20l;
+	private final long EXPIRATION_TIME_REFRESH = 7;
+	private final long EXPIRATION_TIME_ACCESS = 1;
 	private final int ITERATIONS = 10000;
-
+	
 	private AdminRepository adminRepository;
 
 	@Autowired
@@ -78,23 +75,6 @@ public class AdminService {
 	}
 
 	public boolean authenticateToken(String token) {
-		// if (token != null) {
-		// token = new String(token.substring("Bearer ".length()));
-		// Admin admin;
-		// try {
-		// admin = adminRepository.findByRefreshToken(token);
-		// } catch (DataAccessException e) {
-		// throw new WebInternalErrorException("Internal error");
-		// }
-		// if (admin == null)
-		// throw new UnauthorizedException("Token not found");
-		// else if (admin.getTimestamp().isBefore(LocalDateTime.now())) {
-		// throw new UnauthorizedException("Token has run out");
-		// } else
-		// return true;
-		// } else
-		// throw new UnauthorizedException("No authorization header found");
-		//
 
 		if (token != null) {
 
@@ -105,29 +85,21 @@ public class AdminService {
 				Jws<Claims> claims = Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(token);
 
 			} catch (ExpiredJwtException e) {
-				throw new UnauthorizedException("JWT has run out");
+				throw new UnauthorizedException("Access token has run out");
 			} catch (JwtException e) {
-				throw new UnauthorizedException("JWT could not be verified");
+				throw new UnauthorizedException("Access token could not be verified");
 			}
 
 			return true;
 		} else {
 			throw new UnauthorizedException("Authorization header not found or empty");
 		}
-
 	}
-
-	public void updateTokenTimestamp(String token) {
-		if (token != null) {
-			token = new String(token.substring("Bearer ".length()));
-			try {
-				Admin admin = adminRepository.findByRefreshToken(token);
-				admin.setTimestamp(generateRefreshTimestamp());
-				adminRepository.save(admin);
-			} catch (DataAccessException e) {
-				throw new WebInternalErrorException("Internal error");
-			}
-		}
+	
+	public String generateNewAccessToken(String accessToken, String refreshToken){
+		
+		
+		return null;
 	}
 
 	private Admin createAdmin(String username, String password) {
@@ -178,15 +150,17 @@ public class AdminService {
 		return new String(Base64.getEncoder().encode(bytes));
 	}
 
-	private LocalDateTime generateRefreshTimestamp() {
+	private Date generateRefreshTimestamp() {
 
-		return LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
+		LocalDateTime date = LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
+		
+		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
 
 	private Date generateAccessTimestamp() {
 
 		LocalDateTime date = LocalDateTime.now().plusMinutes(EXPIRATION_TIME_ACCESS);
 
-		return Date.from(date.toInstant(ZoneOffset.UTC));
+		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
 }
