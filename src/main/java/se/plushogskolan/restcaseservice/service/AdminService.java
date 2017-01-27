@@ -5,7 +5,6 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
@@ -17,9 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -34,9 +31,9 @@ import se.plushogskolan.restcaseservice.repository.AdminRepository;
 public class AdminService {
 
 	private final long EXPIRATION_TIME_REFRESH = 7;
-	private final long EXPIRATION_TIME_ACCESS = 1;
+	private final long EXPIRATION_TIME_ACCESS = 20;
 	private final int ITERATIONS = 10000;
-	
+
 	private AdminRepository adminRepository;
 
 	@Autowired
@@ -82,7 +79,7 @@ public class AdminService {
 
 			try {
 
-				Jws<Claims> claims = Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(token);
+				Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(token);
 
 			} catch (ExpiredJwtException e) {
 				throw new UnauthorizedException("Access token has run out");
@@ -95,11 +92,32 @@ public class AdminService {
 			throw new UnauthorizedException("Authorization header not found or empty");
 		}
 	}
-	
-	public String generateNewAccessToken(String accessToken, String refreshToken){
-		
-		
-		return null;
+
+	public String generateNewAccessToken(String accessToken, String refreshToken) {
+
+		if (accessToken != null) {
+
+			Admin admin = findAdminByRefreshToken(refreshToken);
+
+			accessToken = new String(accessToken.substring("Bearer ".length()));
+
+			try {
+
+				Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(accessToken);
+
+			} catch (ExpiredJwtException e) {
+
+				return generateAccessToken(admin);
+
+			} catch (JwtException e) {
+				throw new UnauthorizedException("Access token could not be verified");
+			}
+
+			return generateAccessToken(admin);
+
+		} else {
+			throw new UnauthorizedException("Authorization header not found or empty");
+		}
 	}
 
 	private Admin createAdmin(String username, String password) {
@@ -153,7 +171,7 @@ public class AdminService {
 	private Date generateRefreshTimestamp() {
 
 		LocalDateTime date = LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
-		
+
 		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
 
@@ -163,4 +181,23 @@ public class AdminService {
 
 		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
+
+	private Admin findAdminByRefreshToken(String refreshToken) {
+		try {
+			
+			System.out.println(refreshToken);
+			
+			Admin admin = adminRepository.findByRefreshToken(refreshToken);
+
+			if (admin != null) {
+				return admin;
+			} else {
+				throw new NotFoundException("Admin could not be found");
+			}
+		} catch (DataAccessException e) {
+			throw new NotFoundException("Admin could not be found");
+		}
+
+	}
+
 }

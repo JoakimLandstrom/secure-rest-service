@@ -1,6 +1,7 @@
 package se.plushogskolan.restcaseservice.resource;
 
 import javax.ws.rs.Consumes;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.model.AccessBean;
-import se.plushogskolan.restcaseservice.model.LoginBean;
+import se.plushogskolan.restcaseservice.model.AuthBean;
 import se.plushogskolan.restcaseservice.service.AdminService;
 
 @Component
@@ -26,7 +27,7 @@ public final class LoginResource {
 	private AdminService adminService;
 	
 	@POST
-	public Response login(LoginBean credentials){
+	public Response login(AuthBean credentials){
 		
 		if(credentials.getPassword() == null || credentials.getUsername() == null)
 			throw new UnauthorizedException("Missing username or password");
@@ -36,9 +37,26 @@ public final class LoginResource {
 		return Response.ok(accessBean).build();
 	}
 	
+	@POST
+	@Path("refresh")
+	public Response getNewAccessToken(AuthBean authBean, @HeaderParam("Authorization") String access_token){
+		
+		String refresh_token = authBean.getRefresh_token();
+		
+		if(refresh_token == null)
+			throw new UnauthorizedException("Missing refresh token");
+		
+		String accessToken = adminService.generateNewAccessToken(access_token, refresh_token);
+		
+		AccessBean accessBean = new AccessBean(accessToken, refresh_token);
+		
+		return Response.ok(accessBean).build();
+	}
+	
 	//just to create an admin
-	@PUT
-	public Response createAdmin(LoginBean credentials){
+	@POST
+	@Path("new")
+	public Response createAdmin(AuthBean credentials){
 		
 		if(credentials.getPassword() == null || credentials.getUsername() == null)
 			throw new UnauthorizedException("Missing username or password");

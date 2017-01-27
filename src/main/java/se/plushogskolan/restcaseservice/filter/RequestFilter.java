@@ -22,10 +22,8 @@ public final class RequestFilter implements ContainerRequestFilter {
 		String token = requestContext.getHeaderString("Authorization");
 		String resource = requestContext.getUriInfo().getRequestUri().getRawPath();
 		
-		if ("/login".equals(resource)) {} 
-		else if(adminService.authenticateToken(token)) {
-			
-		}
+		if ("/login".equals(resource) || "/login/refresh".equals(resource)) {} 
+		else if(adminService.authenticateToken(token)) {}
 		else
 			throw new UnauthorizedException("Unauthorized");
 	}
