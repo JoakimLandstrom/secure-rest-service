@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
@@ -18,8 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.SignatureException;
 import se.plushogskolan.restcaseservice.exception.NotFoundException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
@@ -59,7 +65,7 @@ public class AdminService {
 		}
 		if (admin != null) {
 			if (authenticateLogin(admin, password)) {
-				
+
 				admin.setRefreshToken(generateRefreshToken());
 				admin.setTimestamp(generateRefreshTimestamp());
 				admin = adminRepository.save(admin);
@@ -72,22 +78,42 @@ public class AdminService {
 	}
 
 	public boolean authenticateToken(String token) {
+		// if (token != null) {
+		// token = new String(token.substring("Bearer ".length()));
+		// Admin admin;
+		// try {
+		// admin = adminRepository.findByRefreshToken(token);
+		// } catch (DataAccessException e) {
+		// throw new WebInternalErrorException("Internal error");
+		// }
+		// if (admin == null)
+		// throw new UnauthorizedException("Token not found");
+		// else if (admin.getTimestamp().isBefore(LocalDateTime.now())) {
+		// throw new UnauthorizedException("Token has run out");
+		// } else
+		// return true;
+		// } else
+		// throw new UnauthorizedException("No authorization header found");
+		//
+
 		if (token != null) {
+
 			token = new String(token.substring("Bearer ".length()));
-			Admin admin;
+
 			try {
-				admin = adminRepository.findByRefreshToken(token);
-			} catch (DataAccessException e) {
-				throw new WebInternalErrorException("Internal error");
+
+				Jws<Claims> claims = Jwts.parser().require("adm", true).setSigningKey("fisk").parseClaimsJws(token);
+
+			} catch (ExpiredJwtException e) {
+				throw new UnauthorizedException("JWT has run out");
+			} catch (JwtException e) {
+				throw new UnauthorizedException("JWT could not be verified");
 			}
-			if (admin == null)
-				throw new UnauthorizedException("Token not found");
-			else if (admin.getTimestamp().isBefore(LocalDateTime.now())) {
-				throw new UnauthorizedException("Token has run out");
-			} else
-				return true;
-		} else
-			throw new UnauthorizedException("No authorization header found");
+
+			return true;
+		} else {
+			throw new UnauthorizedException("Authorization header not found or empty");
+		}
 
 	}
 
@@ -139,8 +165,8 @@ public class AdminService {
 	private String generateAccessToken(Admin admin) {
 
 		String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
-				.claim("usn", admin.getUsername()).claim("exp", dateToString(generateAccessTimestamp()))
-				.claim("adm", true).signWith(SignatureAlgorithm.HS256, "fisk").compact();
+				.claim("usn", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("adm", true)
+				.signWith(SignatureAlgorithm.HS256, "fisk").compact();
 
 		return jwtToken;
 	}
@@ -153,21 +179,14 @@ public class AdminService {
 	}
 
 	private LocalDateTime generateRefreshTimestamp() {
+
 		return LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
 	}
-	
-	private LocalDateTime generateAccessTimestamp(){
-		return LocalDateTime.now().plusMinutes(EXPIRATION_TIME_ACCESS);
-	}
 
-	private String dateToString(LocalDateTime dateTime) {
+	private Date generateAccessTimestamp() {
 
-		Instant instant = dateTime.atZone(ZoneId.systemDefault()).toInstant();
+		LocalDateTime date = LocalDateTime.now().plusMinutes(EXPIRATION_TIME_ACCESS);
 
-		Date date = Date.from(instant);
-		
-		SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-		
-		return format.format(date);
+		return Date.from(date.toInstant(ZoneOffset.UTC));
 	}
 }
