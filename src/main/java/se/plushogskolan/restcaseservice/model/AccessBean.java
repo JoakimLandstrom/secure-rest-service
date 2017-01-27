@@ -4,15 +4,15 @@ public final class AccessBean {
 
 	private String access_token;
 	
-	private String expiration_time;
+	private String refresh_token;
 	
-	public AccessBean(String access_token, String expiration_time){
+	public AccessBean(String access_token, String refresh_token){
 		this.access_token = access_token;
-		this.expiration_time = expiration_time;
+		this.refresh_token = refresh_token;
 	}
 	
-	public String getExpiration_time() {
-		return expiration_time;
+	public String getRefresh_token() {
+		return refresh_token;
 	}
 	
 	public String getAccess_token() {

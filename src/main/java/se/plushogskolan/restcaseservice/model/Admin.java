@@ -21,7 +21,7 @@ public class Admin extends AbstractEntity {
 	private LocalDateTime timestamp;
 	
 	@Column(unique=true)
-	private String token;
+	private String refreshToken;
 	
 	protected Admin(){
 	}
@@ -49,15 +49,15 @@ public class Admin extends AbstractEntity {
 		return LocalDateTime.from(timestamp);
 	}
 	
-	public String getToken() {
-		return token;
+	public String getRefreshToken() {
+		return refreshToken;
 	}
 	
 	public void setTimestamp(LocalDateTime timestamp) {
 		this.timestamp = timestamp;
 	}
 	
-	public void setToken(String token) {
-		this.token = token;
+	public void setRefreshToken(String token) {
+		this.refreshToken = token;
 	}
 }

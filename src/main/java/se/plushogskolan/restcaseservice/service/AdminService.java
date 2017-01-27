@@ -1,9 +1,9 @@
 package se.plushogskolan.restcaseservice.service;
 
-import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.impl.crypto.MacProvider;
 import se.plushogskolan.restcaseservice.exception.NotFoundException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
@@ -31,12 +30,11 @@ import se.plushogskolan.restcaseservice.repository.AdminRepository;
 @Service
 public class AdminService {
 
-	private final long EXPIRATION_TIME = 300;
+	private final long EXPIRATION_TIME_REFRESH = 7l;
+	private final long EXPIRATION_TIME_ACCESS = 20l;
 	private final int ITERATIONS = 10000;
 
 	private AdminRepository adminRepository;
-
-	private Key key = MacProvider.generateKey();
 
 	@Autowired
 	public AdminService(AdminRepository adminRepository) {
@@ -61,11 +59,12 @@ public class AdminService {
 		}
 		if (admin != null) {
 			if (authenticateLogin(admin, password)) {
-				String token = generateToken(admin);
-				admin.setToken(token);
-				admin.setTimestamp(generateTimestamp());
+				
+				admin.setRefreshToken(generateRefreshToken());
+				admin.setTimestamp(generateRefreshTimestamp());
 				admin = adminRepository.save(admin);
-				return new AccessBean(admin.getToken(), admin.getTimestamp().toString());
+
+				return new AccessBean(generateAccessToken(admin), admin.getRefreshToken());
 			} else
 				throw new UnauthorizedException("Invalid login");
 		} else
@@ -77,7 +76,7 @@ public class AdminService {
 			token = new String(token.substring("Bearer ".length()));
 			Admin admin;
 			try {
-				admin = adminRepository.findByToken(token);
+				admin = adminRepository.findByRefreshToken(token);
 			} catch (DataAccessException e) {
 				throw new WebInternalErrorException("Internal error");
 			}
@@ -89,14 +88,15 @@ public class AdminService {
 				return true;
 		} else
 			throw new UnauthorizedException("No authorization header found");
+
 	}
 
 	public void updateTokenTimestamp(String token) {
 		if (token != null) {
 			token = new String(token.substring("Bearer ".length()));
 			try {
-				Admin admin = adminRepository.findByToken(token);
-				admin.setTimestamp(generateTimestamp());
+				Admin admin = adminRepository.findByRefreshToken(token);
+				admin.setTimestamp(generateRefreshTimestamp());
 				adminRepository.save(admin);
 			} catch (DataAccessException e) {
 				throw new WebInternalErrorException("Internal error");
@@ -136,24 +136,38 @@ public class AdminService {
 		return Arrays.equals(generateHash(password, admin.getSalt()), admin.getHashedPassword());
 	}
 
-	private String generateToken(Admin admin) {
+	private String generateAccessToken(Admin admin) {
 
 		String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
-				.claim("usn", admin.getUsername()).claim("exp", getDateFromLocalDate(admin.getTimestamp()))
-				.claim("adm", true).signWith(SignatureAlgorithm.HS256, key).compact();
+				.claim("usn", admin.getUsername()).claim("exp", dateToString(generateAccessTimestamp()))
+				.claim("adm", true).signWith(SignatureAlgorithm.HS256, "fisk").compact();
 
 		return jwtToken;
 	}
 
-	private LocalDateTime generateTimestamp() {
-		return LocalDateTime.now().plusSeconds(EXPIRATION_TIME);
+	private String generateRefreshToken() {
+		byte[] bytes = new byte[32];
+		SecureRandom random = new SecureRandom();
+		random.nextBytes(bytes);
+		return new String(Base64.getEncoder().encode(bytes));
 	}
 
-	private Date getDateFromLocalDate(LocalDateTime dateTime) {
+	private LocalDateTime generateRefreshTimestamp() {
+		return LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
+	}
+	
+	private LocalDateTime generateAccessTimestamp(){
+		return LocalDateTime.now().plusMinutes(EXPIRATION_TIME_ACCESS);
+	}
+
+	private String dateToString(LocalDateTime dateTime) {
 
 		Instant instant = dateTime.atZone(ZoneId.systemDefault()).toInstant();
 
-		return Date.from(instant);
+		Date date = Date.from(instant);
+		
+		SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		
+		return format.format(date);
 	}
-
 }
