@@ -1,7 +1,6 @@
 package se.plushogskolan.restcaseservice.service;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
@@ -13,11 +12,11 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Properties;
-import java.util.ResourceBundle;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -32,6 +31,8 @@ import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
 import se.plushogskolan.restcaseservice.model.AccessBean;
 import se.plushogskolan.restcaseservice.model.Admin;
 import se.plushogskolan.restcaseservice.repository.AdminRepository;
+import se.plushogskolan.restcaseservice.repository.FacebookApi;
+import se.plushogskolan.restcaseservice.repository.SocialMedia;
 
 @Service
 public class AdminService {
@@ -42,9 +43,12 @@ public class AdminService {
 
 	private AdminRepository adminRepository;
 
+	private SocialMedia socialMediaApi;
+
 	@Autowired
-	public AdminService(AdminRepository adminRepository) {
+	public AdminService(AdminRepository adminRepository, SocialMedia socialMedia) {
 		this.adminRepository = adminRepository;
+		this.socialMediaApi = socialMedia;
 	}
 
 	public Admin save(String username, String password) {
@@ -99,6 +103,25 @@ public class AdminService {
 		}
 	}
 
+	public String authenticateFacebookToken(String socialMediaToken) {
+
+		String response;
+		JSONObject jsonObject;
+
+		try {
+
+			response = socialMediaApi.getUser(socialMediaToken);
+
+			jsonObject = new JSONObject(response);
+
+		} catch (IOException e) {
+			throw new WebInternalErrorException("Internal error");
+		}
+
+		return generateAccessToken(isUserFacebookAuthenticated(jsonObject));
+
+	}
+
 	public String generateNewAccessToken(String accessToken, String refreshToken) {
 
 		if (accessToken != null) {
@@ -124,6 +147,37 @@ public class AdminService {
 		} else {
 			throw new UnauthorizedException("Authorization header not found or empty");
 		}
+	}
+
+	private Admin isUserFacebookAuthenticated(JSONObject jsonObject) {
+
+		if (jsonObject.get("error") != null) {
+
+			JSONObject errorObject = jsonObject.getJSONObject("error");
+
+			throw new UnauthorizedException(errorObject.getString("message"));
+		}
+
+		if (jsonObject.getBoolean("verified")) {
+			Admin admin;
+
+			try {
+
+				admin = adminRepository.findByUsername(jsonObject.getString("username"));
+
+			} catch (DataAccessException e) {
+				throw new WebInternalErrorException("Internal error");
+			}
+
+			if (admin != null) {
+				return admin;
+			} else {
+				throw new NotFoundException("Admin could not be found");
+			}
+
+		} else
+			throw new UnauthorizedException("Facebook token could not be verified");
+
 	}
 
 	private Admin createAdmin(String username, String password) {

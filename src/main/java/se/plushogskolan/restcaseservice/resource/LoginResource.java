@@ -3,9 +3,9 @@ package se.plushogskolan.restcaseservice.resource;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -38,6 +38,19 @@ public final class LoginResource {
 	}
 	
 	@POST
+	@Path("social")
+	public Response authenticate(@QueryParam("fb") String facebookToken){
+		
+		String access_token = "";
+		
+		if(facebookToken != null)
+			access_token =  adminService.authenticateFacebookToken(facebookToken);
+		
+		
+		return Response.ok(access_token).build();
+	}
+	
+	@POST
 	@Path("refresh")
 	public Response getNewAccessToken(AuthBean authBean, @HeaderParam("Authorization") String access_token){
 		
@@ -65,5 +78,4 @@ public final class LoginResource {
 		
 		return Response.ok().build();
 	}
-
 }
