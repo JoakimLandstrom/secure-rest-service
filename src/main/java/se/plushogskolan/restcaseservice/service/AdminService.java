@@ -16,6 +16,7 @@ import java.util.Properties;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
@@ -28,11 +29,9 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import se.plushogskolan.restcaseservice.exception.NotFoundException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
-import se.plushogskolan.restcaseservice.model.AccessBean;
 import se.plushogskolan.restcaseservice.model.Admin;
 import se.plushogskolan.restcaseservice.repository.AdminRepository;
 import se.plushogskolan.restcaseservice.repository.FacebookApi;
-import se.plushogskolan.restcaseservice.repository.SocialMedia;
 
 @Service
 public class AdminService {
@@ -43,12 +42,12 @@ public class AdminService {
 
 	private AdminRepository adminRepository;
 
-	private SocialMedia socialMediaApi;
+	private FacebookApi facebookApi;
 
 	@Autowired
-	public AdminService(AdminRepository adminRepository, SocialMedia socialMedia) {
+	public AdminService(AdminRepository adminRepository, FacebookApi facebookApi) {
 		this.adminRepository = adminRepository;
-		this.socialMediaApi = socialMedia;
+		this.facebookApi = facebookApi;
 	}
 
 	public Admin save(String username, String password) {
@@ -58,27 +57,6 @@ public class AdminService {
 		} catch (DataAccessException e) {
 			throw new WebInternalErrorException("Could not save admin");
 		}
-	}
-
-	public AccessBean login(String username, String password) {
-		Admin admin;
-		try {
-			admin = adminRepository.findByUsername(username);
-		} catch (DataAccessException e) {
-			throw new WebInternalErrorException("Internal error");
-		}
-		if (admin != null) {
-			if (authenticateLogin(admin, password)) {
-
-				admin.setRefreshToken(generateRefreshToken());
-				admin.setTimestamp(generateRefreshTimestamp());
-				admin = adminRepository.save(admin);
-
-				return new AccessBean(generateAccessToken(admin), admin.getRefreshToken());
-			} else
-				throw new UnauthorizedException("Invalid login");
-		} else
-			throw new NotFoundException("User does not exist");
 	}
 
 	public boolean authenticateToken(String token) {
@@ -103,81 +81,61 @@ public class AdminService {
 		}
 	}
 
-	public String authenticateFacebookToken(String socialMediaToken) {
+	public String authenticateFacebookUser(String facebookToken) {
 
 		String response;
 		JSONObject jsonObject;
 
 		try {
 
-			response = socialMediaApi.getUser(socialMediaToken);
+			response = facebookApi.getUser(facebookToken);
 
 			jsonObject = new JSONObject(response);
 
-		} catch (IOException e) {
+		} catch (IOException | JSONException e) {
 			throw new WebInternalErrorException("Internal error");
 		}
 
-		return generateAccessToken(isUserFacebookAuthenticated(jsonObject));
-
-	}
-
-	public String generateNewAccessToken(String accessToken, String refreshToken) {
-
-		if (accessToken != null) {
-
-			Admin admin = findAdminByRefreshToken(refreshToken);
-
-			accessToken = new String(accessToken.substring("Bearer ".length()));
-
-			try {
-
-				Jwts.parser().require("adm", true).setSigningKey(getSecret()).parseClaimsJws(accessToken);
-
-			} catch (ExpiredJwtException e) {
-
-				return generateAccessToken(admin);
-
-			} catch (JwtException e) {
-				throw new UnauthorizedException("Access token could not be verified");
-			}
-
-			return generateAccessToken(admin);
-
-		} else {
-			throw new UnauthorizedException("Authorization header not found or empty");
-		}
+		Admin admin = isUserFacebookAuthenticated(jsonObject);
+		
+		admin.setToken(facebookToken);
+		
+		adminRepository.save(admin);
+		
+		return generateAccessToken(admin);
 	}
 
 	private Admin isUserFacebookAuthenticated(JSONObject jsonObject) {
-
-		if (jsonObject.get("error") != null) {
-
-			JSONObject errorObject = jsonObject.getJSONObject("error");
-
-			throw new UnauthorizedException(errorObject.getString("message"));
-		}
-
-		if (jsonObject.getBoolean("verified")) {
-			Admin admin;
-
-			try {
-
-				admin = adminRepository.findByUsername(jsonObject.getString("username"));
-
-			} catch (DataAccessException e) {
+		
+		Admin admin;
+		
+		if(jsonObjectContainsAdmin(jsonObject)){
+			
+			try{
+				admin =  adminRepository.findByUsername(jsonObject.getString("name"));
+			}catch (DataAccessException e) {
 				throw new WebInternalErrorException("Internal error");
 			}
-
-			if (admin != null) {
-				return admin;
-			} else {
-				throw new NotFoundException("Admin could not be found");
-			}
-
-		} else
+		} else {
 			throw new UnauthorizedException("Facebook token could not be verified");
-
+		}
+		
+		if(admin != null){
+			return admin;			
+		}else{
+			throw new UnauthorizedException("Admin doest not exist");
+		}
+	}
+	
+	private boolean jsonObjectContainsAdmin(JSONObject jsonObject){
+		
+		try{
+			jsonObject.getString("name");
+		}catch (JSONException e) {
+			throw new UnauthorizedException(jsonObject.getJSONObject("error").getString("message"));
+		}
+		
+		return true;
 	}
 
 	private Admin createAdmin(String username, String password) {
@@ -242,10 +200,10 @@ public class AdminService {
 		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
 
-	private Admin findAdminByRefreshToken(String refreshToken) {
+	private Admin findAdminByToken(String refreshToken) {
 		try {
 
-			Admin admin = adminRepository.findByRefreshToken(refreshToken);
+			Admin admin = adminRepository.findByToken(refreshToken);
 
 			if (admin != null) {
 				return admin;

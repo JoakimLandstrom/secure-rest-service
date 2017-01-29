@@ -8,6 +8,6 @@ public interface AdminRepository extends PagingAndSortingRepository<Admin, Long>
 
 	public Admin findByUsername(String username);
 	
-	public Admin findByRefreshToken(String token);
+	public Admin findByToken(String token);
 		
 }

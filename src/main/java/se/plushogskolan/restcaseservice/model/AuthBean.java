@@ -2,34 +2,17 @@ package se.plushogskolan.restcaseservice.model;
 
 public final class AuthBean {
 	
-	private String username;
+	private String facebookToken;
 	
-	private String password;
-	
-	private String refresh_token;
-	
-	private AuthBean(String username, String password, String refresh_token){
-		this.username = username;
-		this.password = password;
-		this.refresh_token = refresh_token;
+	private AuthBean(String facebookToken){
+		this.facebookToken = facebookToken;
 	}
 	
 	private AuthBean(){
-		this.username = null;
-		this.password = null;
-		this.refresh_token = null;
+		this.facebookToken = null;
 	}
 	
-	public String getUsername() {
-		return username;
+	public String getFacebookToken() {
+		return facebookToken;
 	}
-	
-	public String getPassword() {
-		return password;
-	}
-	
-	public String getRefresh_token() {
-		return refresh_token;
-	}
-
 }
