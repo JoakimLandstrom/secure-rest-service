@@ -80,15 +80,17 @@ public class FacebookAdminService {
 	public String authenticateFacebookUser(String facebookToken) {
 
 		try {
+			
 			JSONObject userAccess = new JSONObject(facebookApi.authenticateUser(facebookToken));
 			String userid = getUserId(facebookApi.getUserInfo(userAccess.getString("access_token")));
-
+			
 			Admin admin = adminRepository.findByUserId(userid);
 			admin.setToken(userAccess.getString("access_token"));
 			adminRepository.save(admin);
 
 			return generateAccessToken(getFacebookUser(userid));
 		} catch (ExternalApiException | JSONException | DataAccessException e) {
+			e.printStackTrace();
 			throw new WebInternalErrorException("Internal error");
 		}
 	}

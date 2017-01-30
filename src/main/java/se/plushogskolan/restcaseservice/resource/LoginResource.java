@@ -18,7 +18,7 @@ import se.plushogskolan.restcaseservice.model.CreateAdminBean;
 import se.plushogskolan.restcaseservice.service.FacebookAdminService;
 
 @Component
-@Path("login")
+@Path("login/facebook")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public final class LoginResource {
@@ -27,10 +27,10 @@ public final class LoginResource {
 	private FacebookAdminService adminService;
 
 	@GET
-	public Response getFacebookUserAccessToken(@QueryParam("code") String facebookAccesstoken) {
+	public Response authenticateFacebookUser(@QueryParam("code") String facebookAccesstoken) {
 
 		// sent from
-		// https://www.facebook.com/v2.8/dialog/oauth?client_id=1733194800342742&redirect_uri=http://localhost:8080/login
+		// https://www.facebook.com/v2.8/dialog/oauth?client_id=1733194800342742&redirect_uri=http://localhost:8080/login/facebook
 
 		AccessBean accessBean = new AccessBean(adminService.authenticateFacebookUser(facebookAccesstoken));
 

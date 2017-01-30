@@ -34,7 +34,7 @@ public final class FacebookApi implements SocialMedia {
 				int statusCode = httpURLConnection.getResponseCode();
 
 				if (statusCode != 200) {
-					return readInputStream(httpURLConnection.getErrorStream());
+					throw new ExternalApiException("Couldnt authenticate user");
 				}
 			}
 
@@ -54,7 +54,7 @@ public final class FacebookApi implements SocialMedia {
 				int statusCode = httpURLConnection.getResponseCode();
 
 				if (statusCode != 200) {
-					return readInputStream(httpURLConnection.getErrorStream());
+					throw new ExternalApiException("Could not get user info");
 				}
 			}
 
@@ -69,7 +69,7 @@ public final class FacebookApi implements SocialMedia {
 		StringBuilder builder = new StringBuilder();
 
 		builder.append("https://graph.facebook.com/v2.8/oauth/access_token?client_id=").append(getClientId())
-				.append("&redirect_uri=http://localhost:8080/login&client_secret=").append(getClientSecret())
+				.append("&redirect_uri=http://localhost:8080/login/facebook&client_secret=").append(getClientSecret())
 				.append("&code=").append(facebookCode);
 
 		return builder.toString();
