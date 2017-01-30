@@ -8,7 +8,6 @@ import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Properties;
@@ -26,7 +25,6 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import se.plushogskolan.restcaseservice.exception.NotFoundException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
 import se.plushogskolan.restcaseservice.model.Admin;
@@ -36,7 +34,6 @@ import se.plushogskolan.restcaseservice.repository.FacebookApi;
 @Service
 public class AdminService {
 
-	private final long EXPIRATION_TIME_REFRESH = 7;
 	private final long EXPIRATION_TIME_ACCESS = 20;
 	private final int ITERATIONS = 10000;
 
@@ -97,44 +94,44 @@ public class AdminService {
 		}
 
 		Admin admin = isUserFacebookAuthenticated(jsonObject);
-		
+
 		admin.setToken(facebookToken);
-		
+
 		adminRepository.save(admin);
-		
+
 		return generateAccessToken(admin);
 	}
 
 	private Admin isUserFacebookAuthenticated(JSONObject jsonObject) {
-		
+
 		Admin admin;
-		
-		if(jsonObjectContainsAdmin(jsonObject)){
-			
-			try{
-				admin =  adminRepository.findByUsername(jsonObject.getString("name"));
-			}catch (DataAccessException e) {
+
+		if (jsonObjectContainsAdmin(jsonObject)) {
+
+			try {
+				admin = adminRepository.findByUsername(jsonObject.getString("name"));
+			} catch (DataAccessException e) {
 				throw new WebInternalErrorException("Internal error");
 			}
 		} else {
 			throw new UnauthorizedException("Facebook token could not be verified");
 		}
-		
-		if(admin != null){
-			return admin;			
-		}else{
+
+		if (admin != null) {
+			return admin;
+		} else {
 			throw new UnauthorizedException("Admin doest not exist");
 		}
 	}
-	
-	private boolean jsonObjectContainsAdmin(JSONObject jsonObject){
-		
-		try{
+
+	private boolean jsonObjectContainsAdmin(JSONObject jsonObject) {
+
+		try {
 			jsonObject.getString("name");
-		}catch (JSONException e) {
+		} catch (JSONException e) {
 			throw new UnauthorizedException(jsonObject.getJSONObject("error").getString("message"));
 		}
-		
+
 		return true;
 	}
 
@@ -166,10 +163,6 @@ public class AdminService {
 		return hashToReturn;
 	}
 
-	private boolean authenticateLogin(Admin admin, String password) {
-		return Arrays.equals(generateHash(password, admin.getSalt()), admin.getHashedPassword());
-	}
-
 	private String generateAccessToken(Admin admin) {
 
 		String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
@@ -179,40 +172,11 @@ public class AdminService {
 		return jwtToken;
 	}
 
-	private String generateRefreshToken() {
-		byte[] bytes = new byte[32];
-		SecureRandom random = new SecureRandom();
-		random.nextBytes(bytes);
-		return new String(Base64.getEncoder().encode(bytes));
-	}
-
-	private Date generateRefreshTimestamp() {
-
-		LocalDateTime date = LocalDateTime.now().plusDays(EXPIRATION_TIME_REFRESH);
-
-		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
-	}
-
 	private Date generateAccessTimestamp() {
 
 		LocalDateTime date = LocalDateTime.now().plusMinutes(EXPIRATION_TIME_ACCESS);
 
 		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
-	}
-
-	private Admin findAdminByToken(String refreshToken) {
-		try {
-
-			Admin admin = adminRepository.findByToken(refreshToken);
-
-			if (admin != null) {
-				return admin;
-			} else {
-				throw new NotFoundException("Admin could not be found");
-			}
-		} catch (DataAccessException e) {
-			throw new NotFoundException("Admin could not be found");
-		}
 	}
 
 	private String getSecret() {

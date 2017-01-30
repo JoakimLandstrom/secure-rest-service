@@ -28,25 +28,11 @@ public final class LoginResource {
 		
 		String access_token = "";
 		
-		if(authBean.getFacebookToken() != null)
-			access_token =  adminService.authenticateFacebookUser(authBean.getFacebookToken());
+		if(authBean.getFacebook_token() != null)
+			access_token =  adminService.authenticateFacebookUser(authBean.getFacebook_token());
 		
 		AccessBean accessBean = new AccessBean(access_token);
 		
 		return Response.ok(accessBean).build();
 	}
-
-	
-//	//just to create an admin
-//	@POST
-//	@Path("new")
-//	public Response createAdmin(AuthBean credentials){
-//		
-//		if(credentials.getPassword() == null || credentials.getUsername() == null)
-//			throw new UnauthorizedException("Missing username or password");
-//		
-//		adminService.save(credentials.getUsername(), credentials.getPassword());
-//		
-//		return Response.ok().build();
-//	}
 }
