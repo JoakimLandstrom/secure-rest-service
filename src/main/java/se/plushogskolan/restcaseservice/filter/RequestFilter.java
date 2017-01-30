@@ -1,7 +1,5 @@
 package se.plushogskolan.restcaseservice.filter;
 
-import java.io.IOException;
-
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.ext.Provider;
@@ -18,11 +16,10 @@ public final class RequestFilter implements ContainerRequestFilter {
 	private AdminService adminService;
 
 	@Override
-	public void filter(ContainerRequestContext requestContext) throws IOException {
+	public void filter(ContainerRequestContext requestContext) {
 		
 		String token = requestContext.getHeaderString("Authorization");
 		String resource = requestContext.getUriInfo().getRequestUri().getRawPath().substring(0, "/login".length());
-		
 		
 		if ("/login".equals(resource)) {} 
 		else if(adminService.authenticateToken(token)) {}

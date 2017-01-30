@@ -2,6 +2,7 @@ package se.plushogskolan.restcaseservice.resource;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -31,10 +32,17 @@ public final class LoginResource {
 		// sent from
 		// https://www.facebook.com/v2.8/dialog/oauth?client_id=1733194800342742&redirect_uri=http://localhost:8080/login
 
-		String access_token = adminService.authenticateFacebookUser(facebookAccesstoken);
+		AccessBean accessBean = new AccessBean(adminService.authenticateFacebookUser(facebookAccesstoken));
 
-		AccessBean accessBean = new AccessBean(access_token);
-
+		return Response.ok(accessBean).build();
+	}
+	
+	@GET
+	@Path("refresh")
+	public Response refreshToken(@HeaderParam("Authorization") String authorization){
+	
+		AccessBean accessBean = new AccessBean(adminService.refreshToken(authorization));
+		
 		return Response.ok(accessBean).build();
 	}
 

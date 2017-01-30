@@ -11,10 +11,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import se.plushogskolan.restcaseservice.exception.ExternalApiException;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
 import se.plushogskolan.restcaseservice.model.Admin;
@@ -38,13 +41,13 @@ public class AdminService {
 	}
 
 	public void createAdmin(String userid, String username) {
-		
+
 		try {
 			Admin admin = new Admin(username);
 			admin.setUserId(userid);
 
 			adminRepository.save(admin);
-			
+
 		} catch (DataAccessException e) {
 			throw new WebInternalErrorException("Could not save admin");
 		}
@@ -58,7 +61,7 @@ public class AdminService {
 
 			try {
 
-				Jwts.parser().require("adm", true).setSigningKey(ReadProperty.readProperty("secret"))
+				Jwts.parser().require("admin", true).setSigningKey(ReadProperty.readProperty("secret"))
 						.parseClaimsJws(token);
 
 			} catch (ExpiredJwtException e) {
@@ -77,73 +80,118 @@ public class AdminService {
 
 	public String authenticateFacebookUser(String facebookToken) {
 
-		JSONObject userAccess;
-		String userid;
-
 		try {
-			userAccess = new JSONObject(facebookApi.authenticateUser(facebookToken));
-			userid = getUserId(facebookApi.getUserInfo(userAccess.getString("access_token")));
-			
+			JSONObject userAccess = new JSONObject(facebookApi.authenticateUser(facebookToken));
+			String userid = getUserId(facebookApi.getUserInfo(userAccess.getString("access_token")));
+
 			Admin admin = adminRepository.findByUserId(userid);
 			admin.setToken(userAccess.getString("access_token"));
 			adminRepository.save(admin);
 
-		} catch (IOException | JSONException | DataAccessException e) {
+			return generateAccessToken(getFacebookUser(userid));
+		} catch (ExternalApiException | JSONException | DataAccessException e) {
+			throw new WebInternalErrorException("Internal error");
+		}
+	}
+
+	public String refreshToken(String jwt) {
+
+		jwt = jwt.substring("Bearer ".length());
+		String username = getUsernameFromJwt(jwt);
+
+		try {
+			Admin admin = adminRepository.findByUsername(username);
+
+			if (admin != null) {
+
+				String adminInfo = facebookApi.getUserInfo(admin.getToken());
+
+				if (isValid(adminInfo)) {
+
+					return generateAccessToken(admin);
+				} else {
+					throw new UnauthorizedException("Token is not valid, login again");
+				}
+			} else {
+				throw new UnauthorizedException("Admin doest not exist");
+			}
+
+		} catch (DataAccessException | ExternalApiException e) {
+			throw new WebInternalErrorException("Internal error");
+		}
+	}
+
+	private String getUsernameFromJwt(String jwt) {
+
+		try {
+			Jws<Claims> claims = Jwts.parser().require("admin", true).setSigningKey(ReadProperty.readProperty("secret"))
+					.parseClaimsJws(jwt);
+
+			return claims.getBody().get("user", String.class);
+
+		} catch (IOException | JwtException e) {
 			e.printStackTrace();
 			throw new WebInternalErrorException("Internal error");
 		}
+	}
 
-		return generateAccessToken(getFacebookUser(userid));
+	private boolean isValid(String jsonString) {
+		try {
+			JSONObject jsonObject = new JSONObject(jsonString).getJSONObject("data");
+
+			return jsonObject.getBoolean("is_valid");
+
+		} catch (JSONException e) {
+			throw new UnauthorizedException("Facebook user could not be verified");
+		}
 	}
 
 	private String getUserId(String jsonString) {
 
-		String userid;
-		JSONObject jsonObject = new JSONObject(jsonString).getJSONObject("data");
-
 		try {
-			userid = jsonObject.getString("user_id");
+
+			JSONObject jsonObject = new JSONObject(jsonString).getJSONObject("data");
+			String userid = jsonObject.getString("user_id");
+
+			if (userid != null) {
+				return userid;
+			} else {
+				throw new UnauthorizedException("No user id");
+			}
 		} catch (JSONException e) {
 			throw new UnauthorizedException("Facebook user could not be verified");
 		}
 
-		if (userid != null) {
-			return userid;
-		} else {
-			throw new UnauthorizedException("No user id");
-		}
 	}
 
 	private Admin getFacebookUser(String userid) {
 
-		Admin admin;
-
 		try {
-			admin = adminRepository.findByUserId(userid);
+			Admin admin = adminRepository.findByUserId(userid);
+
+			if (admin != null) {
+				return admin;
+			} else {
+				throw new UnauthorizedException("Admin doest not exist");
+			}
 		} catch (DataAccessException e) {
 			throw new WebInternalErrorException("Internal error");
-		}
-
-		if (admin != null) {
-			return admin;
-		} else {
-			throw new UnauthorizedException("Admin doest not exist");
 		}
 	}
 
 	private String generateAccessToken(Admin admin) {
-		String jwtToken;
 
 		try {
-			jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
-					.claim("usn", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("adm", true)
+			String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
+					.claim("user", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("admin", true)
 					.signWith(SignatureAlgorithm.HS256, ReadProperty.readProperty("secret")).compact();
+
+			return jwtToken;
 
 		} catch (IOException e) {
 			throw new WebInternalErrorException("Internal error");
 		}
 
-		return jwtToken;
 	}
 
 	private Date generateAccessTimestamp() {

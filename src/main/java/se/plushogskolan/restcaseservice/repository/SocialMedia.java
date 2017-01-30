@@ -1,9 +1,9 @@
 package se.plushogskolan.restcaseservice.repository;
 
-import java.io.IOException;
+import se.plushogskolan.restcaseservice.exception.ExternalApiException;
 
 public interface SocialMedia {
 
-	public String authenticateUser(String token) throws IOException;
+	public String authenticateUser(String token) throws ExternalApiException;
 	
 }
