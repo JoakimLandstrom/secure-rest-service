@@ -65,7 +65,6 @@ public final class FacebookApi implements SocialMedia {
 	}
 
 	private String generateAccesstokenUrl(String facebookCode) throws IOException {
-		// https://graph.facebook.com/v2.8/oauth/access_token?client_id=1733194800342742&redirect_uri=http://localhost:8080/login&client_secret=308089725406fd9222b83f837f518104&code=AQDww49PO54HyrSaqlIUkfwVqgorziksIO5qiAsdsAha3zZWGCdIJdBx-Ihf_DOSgadK6aT1fXLEz8MkFjBpNwyrHAqIFmydc5NSdP3_8D8Pf27waFItpf5ArxU9_jOQoadEIVNS-6yrTT0yqjCERh2GLz-XuRvY7SfSjSgDcH_VS1Q-1BtPKm1uNJHKnPDGNyp1Ud8KQdsbocD4fnkui5zkLKqPh1cw8CTUMf_wAWlChD-hJHUvqFbwDscfgr7MxeLIgbn24Et9T-iXiD9bhqxS43Q0Mt7WRSxZ5gUYRDYuOl_TFnBua1P2Hho_HI6E2Xg
 
 		StringBuilder builder = new StringBuilder();
 

@@ -3,6 +3,7 @@ package se.plushogskolan.restcaseservice.service;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Base64;
 import java.util.Date;
 
 import org.json.JSONException;
@@ -11,9 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -26,7 +25,7 @@ import se.plushogskolan.restcaseservice.repository.AdminRepository;
 import se.plushogskolan.restcaseservice.repository.FacebookApi;
 
 @Service
-public class AdminService {
+public class FacebookAdminService {
 
 	private final long EXPIRATION_TIME_ACCESS = 20;
 
@@ -35,7 +34,7 @@ public class AdminService {
 	private FacebookApi facebookApi;
 
 	@Autowired
-	public AdminService(AdminRepository adminRepository, FacebookApi facebookApi) {
+	public FacebookAdminService(AdminRepository adminRepository, FacebookApi facebookApi) {
 		this.adminRepository = adminRepository;
 		this.facebookApi = facebookApi;
 	}
@@ -123,14 +122,29 @@ public class AdminService {
 
 	private String getUsernameFromJwt(String jwt) {
 
+		if (hasExpired(jwt)) {
+			Base64.Decoder decoder = Base64.getUrlDecoder();
+			String[] parts = jwt.split("\\.");
+
+			String payload = new String(decoder.decode(parts[1]));
+
+			JSONObject jsonObject = new JSONObject(payload);
+			return jsonObject.getString("user");
+		} else {
+			throw new UnauthorizedException("Malformed access token");
+		}
+	}
+
+	private boolean hasExpired(String jwt) {
+
 		try {
-			Jws<Claims> claims = Jwts.parser().require("admin", true).setSigningKey(ReadProperty.readProperty("secret"))
-					.parseClaimsJws(jwt);
-
-			return claims.getBody().get("user", String.class);
-
-		} catch (IOException | JwtException e) {
-			e.printStackTrace();
+			Jwts.parser().require("admin", true).setSigningKey(ReadProperty.readProperty("secret")).parseClaimsJws(jwt);
+			return true;
+		} catch (ExpiredJwtException e) {
+			return true;
+		} catch (JwtException e) {
+			throw new UnauthorizedException("Malformed access token");
+		} catch (IOException e) {
 			throw new WebInternalErrorException("Internal error");
 		}
 	}

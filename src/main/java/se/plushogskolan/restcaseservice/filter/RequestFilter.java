@@ -7,13 +7,13 @@ import javax.ws.rs.ext.Provider;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
-import se.plushogskolan.restcaseservice.service.AdminService;
+import se.plushogskolan.restcaseservice.service.FacebookAdminService;
 
 @Provider
 public final class RequestFilter implements ContainerRequestFilter {
 
 	@Autowired
-	private AdminService adminService;
+	private FacebookAdminService adminService;
 
 	@Override
 	public void filter(ContainerRequestContext requestContext) {

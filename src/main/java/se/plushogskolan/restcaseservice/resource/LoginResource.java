@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 
 import se.plushogskolan.restcaseservice.model.AccessBean;
 import se.plushogskolan.restcaseservice.model.CreateAdminBean;
-import se.plushogskolan.restcaseservice.service.AdminService;
+import se.plushogskolan.restcaseservice.service.FacebookAdminService;
 
 @Component
 @Path("login")
@@ -24,7 +24,7 @@ import se.plushogskolan.restcaseservice.service.AdminService;
 public final class LoginResource {
 
 	@Autowired
-	private AdminService adminService;
+	private FacebookAdminService adminService;
 
 	@GET
 	public Response getFacebookUserAccessToken(@QueryParam("code") String facebookAccesstoken) {
