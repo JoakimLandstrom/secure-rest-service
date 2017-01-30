@@ -1,19 +1,9 @@
 package se.plushogskolan.restcaseservice.service;
 
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Base64;
 import java.util.Date;
-import java.util.Properties;
-
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -28,6 +18,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import se.plushogskolan.restcaseservice.exception.UnauthorizedException;
 import se.plushogskolan.restcaseservice.exception.WebInternalErrorException;
 import se.plushogskolan.restcaseservice.model.Admin;
+import se.plushogskolan.restcaseservice.properties.ReadProperty;
 import se.plushogskolan.restcaseservice.repository.AdminRepository;
 import se.plushogskolan.restcaseservice.repository.FacebookApi;
 
@@ -35,7 +26,6 @@ import se.plushogskolan.restcaseservice.repository.FacebookApi;
 public class AdminService {
 
 	private final long EXPIRATION_TIME_ACCESS = 20;
-	private final int ITERATIONS = 10000;
 
 	private AdminRepository adminRepository;
 
@@ -47,10 +37,14 @@ public class AdminService {
 		this.facebookApi = facebookApi;
 	}
 
-	public Admin save(String username, String password) {
-		Admin admin = createAdmin(username, password);
+	public void createAdmin(String userid, String username) {
+		
 		try {
-			return adminRepository.save(admin);
+			Admin admin = new Admin(username);
+			admin.setUserId(userid);
+
+			adminRepository.save(admin);
+			
 		} catch (DataAccessException e) {
 			throw new WebInternalErrorException("Could not save admin");
 		}
@@ -64,12 +58,15 @@ public class AdminService {
 
 			try {
 
-				Jwts.parser().require("adm", true).setSigningKey(getSecret()).parseClaimsJws(token);
+				Jwts.parser().require("adm", true).setSigningKey(ReadProperty.readProperty("secret"))
+						.parseClaimsJws(token);
 
 			} catch (ExpiredJwtException e) {
 				throw new UnauthorizedException("Access token has run out");
 			} catch (JwtException e) {
 				throw new UnauthorizedException("Access token could not be verified");
+			} catch (IOException e) {
+				throw new WebInternalErrorException("Internal error");
 			}
 
 			return true;
@@ -80,41 +77,51 @@ public class AdminService {
 
 	public String authenticateFacebookUser(String facebookToken) {
 
-		String response;
-		JSONObject jsonObject;
+		JSONObject userAccess;
+		String userid;
 
 		try {
+			userAccess = new JSONObject(facebookApi.authenticateUser(facebookToken));
+			userid = getUserId(facebookApi.getUserInfo(userAccess.getString("access_token")));
+			
+			Admin admin = adminRepository.findByUserId(userid);
+			admin.setToken(userAccess.getString("access_token"));
+			adminRepository.save(admin);
 
-			response = facebookApi.getUser(facebookToken);
-
-			jsonObject = new JSONObject(response);
-
-		} catch (IOException | JSONException e) {
+		} catch (IOException | JSONException | DataAccessException e) {
+			e.printStackTrace();
 			throw new WebInternalErrorException("Internal error");
 		}
 
-		Admin admin = isUserFacebookAuthenticated(jsonObject);
-
-		admin.setToken(facebookToken);
-
-		adminRepository.save(admin);
-
-		return generateAccessToken(admin);
+		return generateAccessToken(getFacebookUser(userid));
 	}
 
-	private Admin isUserFacebookAuthenticated(JSONObject jsonObject) {
+	private String getUserId(String jsonString) {
+
+		String userid;
+		JSONObject jsonObject = new JSONObject(jsonString).getJSONObject("data");
+
+		try {
+			userid = jsonObject.getString("user_id");
+		} catch (JSONException e) {
+			throw new UnauthorizedException("Facebook user could not be verified");
+		}
+
+		if (userid != null) {
+			return userid;
+		} else {
+			throw new UnauthorizedException("No user id");
+		}
+	}
+
+	private Admin getFacebookUser(String userid) {
 
 		Admin admin;
 
-		if (jsonObjectContainsAdmin(jsonObject)) {
-
-			try {
-				admin = adminRepository.findByUsername(jsonObject.getString("name"));
-			} catch (DataAccessException e) {
-				throw new WebInternalErrorException("Internal error");
-			}
-		} else {
-			throw new UnauthorizedException("Facebook token could not be verified");
+		try {
+			admin = adminRepository.findByUserId(userid);
+		} catch (DataAccessException e) {
+			throw new WebInternalErrorException("Internal error");
 		}
 
 		if (admin != null) {
@@ -124,50 +131,17 @@ public class AdminService {
 		}
 	}
 
-	private boolean jsonObjectContainsAdmin(JSONObject jsonObject) {
+	private String generateAccessToken(Admin admin) {
+		String jwtToken;
 
 		try {
-			jsonObject.getString("name");
-		} catch (JSONException e) {
-			throw new UnauthorizedException(jsonObject.getJSONObject("error").getString("message"));
-		}
+			jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
+					.claim("usn", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("adm", true)
+					.signWith(SignatureAlgorithm.HS256, ReadProperty.readProperty("secret")).compact();
 
-		return true;
-	}
-
-	private Admin createAdmin(String username, String password) {
-		byte[] salt = generateSalt(password);
-		byte[] hash = generateHash(password, salt);
-		return new Admin(hash, username, salt);
-	}
-
-	private byte[] generateSalt(String password) {
-		byte[] bytes = new byte[32 - password.length()];
-		SecureRandom random = new SecureRandom();
-		random.nextBytes(bytes);
-		return Base64.getEncoder().encode(bytes);
-	}
-
-	private byte[] generateHash(String arg, byte[] salt) {
-		byte[] hashToReturn = null;
-		char[] password = arg.toCharArray();
-		PBEKeySpec spec = new PBEKeySpec(password, salt, ITERATIONS, 256);
-		SecretKeyFactory factory;
-		try {
-			factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
-			hashToReturn = factory.generateSecret(spec).getEncoded();
-		} catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+		} catch (IOException e) {
 			throw new WebInternalErrorException("Internal error");
 		}
-
-		return hashToReturn;
-	}
-
-	private String generateAccessToken(Admin admin) {
-
-		String jwtToken = Jwts.builder().setHeaderParam("alg", "HS256").setHeaderParam("typ", "JWT")
-				.claim("usn", admin.getUsername()).setExpiration(generateAccessTimestamp()).claim("adm", true)
-				.signWith(SignatureAlgorithm.HS256, getSecret()).compact();
 
 		return jwtToken;
 	}
@@ -178,34 +152,4 @@ public class AdminService {
 
 		return Date.from(date.atZone(ZoneId.systemDefault()).toInstant());
 	}
-
-	private String getSecret() {
-
-		Properties prop = new Properties();
-		InputStream input = null;
-
-		try {
-
-			input = new FileInputStream("src/main/resources/application.properties");
-
-			prop.load(input);
-
-			String property = prop.getProperty("secret");
-
-			return property;
-
-		} catch (IOException e) {
-			throw new WebInternalErrorException("Internal error");
-		} finally {
-			if (input != null) {
-				try {
-					input.close();
-				} catch (IOException e) {
-					throw new WebInternalErrorException("Internal error");
-				}
-			}
-		}
-
-	}
-
 }

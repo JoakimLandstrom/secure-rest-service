@@ -4,6 +4,6 @@ import java.io.IOException;
 
 public interface SocialMedia {
 
-	public String getUser(String socialMediaToken) throws IOException;
+	public String authenticateUser(String token) throws IOException;
 	
 }
