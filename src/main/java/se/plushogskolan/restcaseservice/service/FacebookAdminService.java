@@ -90,7 +90,6 @@ public class FacebookAdminService {
 
 			return generateAccessToken(getFacebookUser(userid));
 		} catch (ExternalApiException | JSONException | DataAccessException e) {
-			e.printStackTrace();
 			throw new WebInternalErrorException("Internal error");
 		}
 	}
